@@ -1,0 +1,170 @@
+const mongoose = require('mongoose');
+
+const tutorSchema = new mongoose.Schema(
+  {
+    photoUrl: {
+      type: String,
+      trim: true,
+    },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    qualification: {
+      type: String,
+      trim: true,
+    },
+    subject: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+  },
+  { _id: true }
+);
+
+const classSchema = new mongoose.Schema(
+  {
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    topic: {
+      type: String,
+      trim: true,
+    },
+    order: {
+      type: Number,
+    },
+    thumbnailUrl: {
+      type: String,
+      trim: true,
+    },
+    lecturePhotoUrl: {
+      type: String,
+      trim: true,
+    },
+    videoUrl: {
+      type: String,
+      trim: true,
+    },
+  },
+  { _id: true }
+);
+
+const studyMaterialSchema = new mongoose.Schema(
+  {
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    description: {
+      type: String,
+      trim: true,
+    },
+    fileUrl: {
+      type: String,
+      trim: true,
+    },
+  },
+  { _id: true }
+);
+
+const courseSchema = new mongoose.Schema(
+  {
+    contentType: {
+      type: String,
+      enum: [
+        'ONLINE_COURSE',
+        'TEST_SERIES',
+        'LIVE_CLASS',
+        'PUBLICATION',
+        'DAILY_QUIZ',
+        'CURRENT_AFFAIRS',
+        'PYQ_EBOOK',
+      ],
+      default: 'ONLINE_COURSE',
+    },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    courseType: {
+      type: String,
+      trim: true,
+    },
+    startDate: {
+      type: Date,
+    },
+    categories: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Category',
+      },
+    ],
+    subCategories: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'SubCategory',
+      },
+    ],
+    languages: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Language',
+      },
+    ],
+    validities: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'ValidityOption',
+      },
+    ],
+    thumbnailUrl: {
+      type: String,
+      trim: true,
+    },
+    originalPrice: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    discountPrice: {
+      type: Number,
+      min: 0,
+    },
+    discountPercent: {
+      type: Number,
+      min: 0,
+      max: 100,
+    },
+    pricingNote: {
+      type: String,
+      trim: true,
+    },
+    shortDescription: {
+      type: String,
+      trim: true,
+    },
+    detailedDescription: {
+      type: String,
+      trim: true,
+    },
+    tutors: [tutorSchema],
+    classes: [classSchema],
+    studyMaterials: [studyMaterialSchema],
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+module.exports = mongoose.model('Course', courseSchema);
