@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Razorpay Integration</title>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .token-section {
+            background-color: #f0f8ff;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Razorpay Test Integration</h1>
+    
+    <div class="token-section">
+        <h3>Authentication</h3>
+        <div class="form-group">
+            <label for="jwtToken">JWT Token:</label>
+            <input type="text" id="jwtToken" placeholder="Enter your JWT token" style="width: 100%;">
+            <small>Get this token after logging into the application</small>
+        </div>
+        <button id="saveTokenBtn">Save Token</button>
+        <div id="tokenStatus" class="error"></div>
+    </div>
+    
+    <div class="container">
+        <h2>Step 1: Create Order</h2>
+        <div class="form-group">
+            <label for="testSeriesId">Test Series ID:</label>
+            <input type="text" id="testSeriesId" placeholder="Enter test series ID">
+        </div>
+        <div class="form-group">
+            <label for="couponCode">Coupon Code (optional):</label>
+            <input type="text" id="couponCode" placeholder="Enter coupon code">
+        </div>
+        <button id="createOrderBtn">Create Order</button>
+        
+        <div id="orderDetails" style="display: none; margin-top: 20px;">
+            <h3>Order Created Successfully!</h3>
+            <pre id="orderResponse"></pre>
+        </div>
+    </div>
+
+    <div class="container" id="paymentSection" style="display: none;">
+        <h2>Step 2: Make Payment</h2>
+        <button id="payNowBtn">Pay Now</button>
+        <div id="paymentResponse" style="margin-top: 20px;"></div>
+    </div>
+
+    <div class="container" id="verificationSection" style="display: none;">
+        <h2>Step 3: Verify Payment</h2>
+        <div id="verificationResponse"></div>
+    </div>
+
+    <script>
+        let orderData = null;
+        const apiBaseUrl = 'http://localhost:5000/api';
+        let token = localStorage.getItem('jwtToken') || '';
+
+        // Initialize token input if exists
+        document.addEventListener('DOMContentLoaded', () => {
+            const tokenInput = document.getElementById('jwtToken');
+            if (token) {
+                tokenInput.value = token;
+                document.getElementById('tokenStatus').textContent = 'Token loaded from storage';
+                document.getElementById('tokenStatus').style.color = 'green';
+            }
+
+            // Save token button handler
+            document.getElementById('saveTokenBtn').addEventListener('click', () => {
+                const newToken = tokenInput.value.trim();
+                if (!newToken) {
+                    document.getElementById('tokenStatus').textContent = 'Token cannot be empty';
+                    document.getElementById('tokenStatus').style.color = 'red';
+                    return;
+                }
+                token = newToken;
+                localStorage.setItem('jwtToken', token);
+                document.getElementById('tokenStatus').textContent = 'Token saved successfully!';
+                document.getElementById('tokenStatus').style.color = 'green';
+                
+                // Enable create order button
+                document.getElementById('createOrderBtn').disabled = false;
+            });
+        });
+
+        // Create Order
+        document.getElementById('createOrderBtn').addEventListener('click', async () => {
+            if (!token) {
+                document.getElementById('tokenStatus').textContent = 'Please enter and save a valid JWT token first';
+                document.getElementById('tokenStatus').style.color = 'red';
+                return;
+            }
+
+            const testSeriesId = document.getElementById('testSeriesId').value.trim();
+            const couponCode = document.getElementById('couponCode').value.trim();
+            
+            if (!testSeriesId) {
+                alert('Please enter a test series ID');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${apiBaseUrl}/payment/create-order`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ 
+                        testSeriesId, 
+                        couponCode: couponCode || undefined 
+                    })
+                });
+
+                if (response.status === 401) {
+                    // Token expired or invalid
+                    localStorage.removeItem('jwtToken');
+                    document.getElementById('tokenStatus').textContent = 'Session expired. Please enter a new token.';
+                    document.getElementById('tokenStatus').style.color = 'red';
+                    return;
+                }
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    orderData = data.order;
+                    document.getElementById('orderResponse').textContent = JSON.stringify(orderData, null, 2);
+                    document.getElementById('orderDetails').style.display = 'block';
+                    document.getElementById('paymentSection').style.display = 'block';
+                    
+                    // Scroll to payment section
+                    document.getElementById('paymentSection').scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    alert('Failed to create order: ' + (data.message || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error creating order:', error);
+                alert('Error creating order. Check console for details.');
+            }
+        });
+
+        // Handle Payment
+        document.getElementById('payNowBtn').addEventListener('click', () => {
+            if (!orderData) {
+                alert('Please create an order first');
+                return;
+            }
+
+            if (!token) {
+                document.getElementById('tokenStatus').textContent = 'Please enter and save a valid JWT token first';
+                document.getElementById('tokenStatus').style.color = 'red';
+                return;
+            }
+
+            const options = {
+                key: "rzp_test_RPLRzNCjuNmGdU",
+                amount: orderData.amountInPaise,
+                currency: orderData.currency,
+                name: "Brain Buzz Test Series",
+                description: "Test Series Purchase",
+                order_id: orderData.id,
+                handler: async function (response) {
+                    const paymentResponse = document.getElementById('paymentResponse');
+                    paymentResponse.innerHTML = `
+                        <h3>Payment Successful!</h3>
+                        <p>Payment ID: ${response.razorpay_payment_id}</p>
+                        <p>Order ID: ${response.razorpay_order_id}</p>
+                        <p>Signature: ${response.razorpay_signature}</p>
+                        <p>Verifying payment...</p>
+                    `;
+
+                    try {
+                        const verifyResponse = await fetch(`${apiBaseUrl}/payment/verify`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify({
+                                razorpay_order_id: response.razorpay_order_id,
+                                razorpay_payment_id: response.razorpay_payment_id,
+                                razorpay_signature: response.razorpay_signature
+                            })
+                        });
+
+                        if (verifyResponse.status === 401) {
+                            // Token expired or invalid
+                            localStorage.removeItem('jwtToken');
+                            document.getElementById('tokenStatus').textContent = 'Session expired. Please enter a new token.';
+                            document.getElementById('tokenStatus').style.color = 'red';
+                            return;
+                        }
+
+                        const verifyData = await verifyResponse.json();
+                        const verificationSection = document.getElementById('verificationSection');
+                        const verificationResponse = document.getElementById('verificationResponse');
+                        
+                        if (verifyData.success) {
+                            verificationResponse.innerHTML = `
+                                <div style="color: green;">
+                                    <h3>Payment Verified Successfully!</h3>
+                                    <p>Order ID: ${verifyData.orderId}</p>
+                                    <p>Payment ID: ${verifyData.paymentId}</p>
+                                    <p>You now have access to the test series.</p>
+                                </div>
+                            `;
+                        } else {
+                            verificationResponse.innerHTML = `
+                                <div style="color: red;">
+                                    <h3>Verification Failed</h3>
+                                    <p>${verifyData.message || 'Unknown error'}</p>
+                                </div>
+                            `;
+                        }
+                        verificationSection.style.display = 'block';
+                        verificationSection.scrollIntoView({ behavior: 'smooth' });
+                    } catch (error) {
+                        console.error('Error verifying payment:', error);
+                        document.getElementById('verificationResponse').innerHTML = `
+                            <div style="color: red;">
+                                <h3>Error verifying payment</h3>
+                                <p>Check console for details</p>
+                            </div>
+                        `;
+                        document.getElementById('verificationSection').style.display = 'block';
+                    }
+                },
+                prefill: {
+                    name: "Test User",
+                    email: "test@example.com",
+                    contact: "9999999999"
+                },
+                notes: {
+                    address: "Test Address"
+                },
+                theme: {
+                    color: "#4CAF50"
+                }
+            };
+
+            const rzp = new Razorpay(options);
+            rzp.on('payment.failed', function (response) {
+                document.getElementById('paymentResponse').innerHTML = `
+                    <div style="color: red;">
+                        <h3>Payment Failed</h3>
+                        <p>Error: ${response.error.description || 'Unknown error'}</p>
+                        <p>Code: ${response.error.code || 'N/A'}</p>
+                    </div>
+                `;
+            });
+
+            rzp.open();
+        });
+    </script>
+</body>
+</html>

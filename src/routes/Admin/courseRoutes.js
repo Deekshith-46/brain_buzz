@@ -5,6 +5,7 @@ const {
   getCourseById,
   updateCourse,
   deleteCourse,
+  addClassesToCourse,
 } = require('../../controllers/Admin/courseController');
 const adminAuthMiddleware = require('../../middlewares/Admin/authMiddleware');
 const upload = require('../../middlewares/uploadMiddleware');

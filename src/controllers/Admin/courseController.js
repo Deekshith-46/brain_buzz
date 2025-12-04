@@ -442,3 +442,96 @@ exports.deleteCourse = async (req, res) => {
     return res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
+
+// Add classes to existing course
+exports.addClassesToCourse = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!req.body.classes) {
+      return res.status(400).json({ message: 'Classes data is required' });
+    }
+
+    const classes = JSON.parse(req.body.classes);
+
+    if (!Array.isArray(classes) || classes.length === 0) {
+      return res.status(400).json({ message: 'Classes must be a non-empty array' });
+    }
+
+    // Handle class media (thumbnails, lecture pics, videos) matched by index
+    const classThumbnails = (req.files && req.files.classThumbnails) || [];
+    const classLecturePics = (req.files && req.files.classLecturePics) || [];
+    const classVideos = (req.files && req.files.classVideos) || [];
+
+    const finalClasses = classes.map((cls, index) => {
+      const c = { ...cls };
+      if (classThumbnails[index]) {
+        c._thumbBuffer = classThumbnails[index].buffer;
+      }
+      if (classLecturePics[index]) {
+        c._lectureBuffer = classLecturePics[index].buffer;
+      }
+      if (classVideos[index]) {
+        c._videoBuffer = classVideos[index].buffer;
+      }
+      return c;
+    });
+
+    for (const cls of finalClasses) {
+      if (cls._thumbBuffer) {
+        const uploadResult = await uploadToCloudinary(
+          cls._thumbBuffer,
+          'brainbuzz/courses/classes/thumbnails',
+          'image'
+        );
+        cls.thumbnailUrl = uploadResult.secure_url;
+        delete cls._thumbBuffer;
+      }
+      if (cls._lectureBuffer) {
+        const uploadResult = await uploadToCloudinary(
+          cls._lectureBuffer,
+          'brainbuzz/courses/classes/lectures',
+          'image'
+        );
+        cls.lecturePhotoUrl = uploadResult.secure_url;
+        delete cls._lectureBuffer;
+      }
+      if (cls._videoBuffer) {
+        const uploadResult = await uploadToCloudinary(
+          cls._videoBuffer,
+          'brainbuzz/courses/classes/videos',
+          'video'
+        );
+        cls.videoUrl = uploadResult.secure_url;
+        delete cls._videoBuffer;
+      }
+    }
+
+    // Add the new classes to the existing ones
+    const course = await Course.findById(id);
+    if (!course) {
+      return res.status(404).json({ message: 'Course not found' });
+    }
+
+    // Append new classes to existing classes
+    course.classes.push(...finalClasses);
+
+    // Save the updated course
+    await course.save();
+
+    // Populate the updated course data
+    const populatedCourse = await Course.findById(id)
+      .populate('categories', 'name slug')
+      .populate('subCategories', 'name slug')
+      .populate('languages', 'name code')
+      .populate('validities', 'label durationInDays');
+
+    return res.status(200).json({
+      message: 'Classes added successfully',
+      data: populatedCourse,
+    });
+  } catch (error) {
+    console.error('Error adding classes to course:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};

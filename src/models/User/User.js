@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const Schema = mongoose.Schema;
 
 const userSchema = new mongoose.Schema(
   {
@@ -49,6 +50,10 @@ const userSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    purchasedTestSeries: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'TestSeries'
+  }],
     isActive: {
       type: Boolean,
       default: true,
